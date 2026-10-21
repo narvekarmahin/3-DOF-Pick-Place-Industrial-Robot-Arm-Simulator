@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3-DOF Pick-and-Place Industrial Robot Simulation | Forward & Inverse Kinematics</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Fullscreen 3D WebGL Canvas -->
+  <div id="canvas-container"></div>
+
+  <!-- Top Navigation & Status HUD -->
+  <header class="top-hud">
+    <div class="brand-section">
+      <svg class="brand-icon" viewBox="0 0 24 24">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+      </svg>
+      <div class="brand-title">
+        3-DOF Robot Simulation  <span>Industrial Robotics Mini-Project</span>  <span> By Mahin Narvekar </span>
+      </div>
+      <div id="status-badge" class="status-badge status-idle">IDLE</div>
+    </div>
+
+    <div class="hud-actions">
+      <!-- Camera Preset Buttons -->
+      <div class="view-btn-group">
+        <button class="hud-btn active" data-cam-view="isometric" title="Isometric View (1)">Iso</button>
+        <button class="hud-btn" data-cam-view="top" title="Top View X-Y (2)">Top</button>
+        <button class="hud-btn" data-cam-view="front" title="Front View X-Z (3)">Front</button>
+        <button class="hud-btn" data-cam-view="side" title="Side View Y-Z (4)">Side</button>
+        <button class="hud-btn" data-cam-view="targetA" title="Focus Target A">Pick A</button>
+        <button class="hud-btn" data-cam-view="targetB" title="Focus Target B">Place B</button>
+      </div>
+
+      <!-- Color Theme Switcher -->
+      <div class="theme-btn-group">
+        <button class="hud-btn active" data-theme="orange" title="KUKA Orange">Orange</button>
+        <button class="hud-btn" data-theme="yellow" title="FANUC Yellow">Yellow</button>
+        <button class="hud-btn" data-theme="white" title="ABB White">White</button>
+        <button class="hud-btn" data-theme="cyan" title="Tech Cyan">Cyan</button>
+      </div>
+
+      <!-- Web Audio Sound Synthesizer Toggle -->
+      <button id="btn-toggle-audio" class="hud-btn active" title="Toggle Robot Servo & Pneumatic Sound">🔊 Audio ON</button>
+    </div>
+  </header>
+
+  <!-- Left & Right Floating UI Panels -->
+  <main class="panels-wrapper">
+
+    <!-- LEFT PANEL: Control Center (FK, IK, Pick & Place) -->
+    <aside class="panel">
+
+      <!-- SECTION 1: PICK-AND-PLACE AUTOMATION CONTROLLER -->
+      <section class="section-card automation-card">
+        <div class="section-title">
+          <span>Automation Workflow</span>
+          <span class="badge">Pick &amp; Place</span>
+        </div>
+
+        <div class="step-tracker">
+          <div class="step-dot"></div>
+          <div id="step-indicator" class="step-text">System Ready</div>
+        </div>
+
+        <div class="action-buttons-grid">
+          <button id="btn-start-auto" class="btn-action-start" title="Run Pick-and-Place Sequence (Spacebar)">▶ Start Cycle</button>
+          <button id="btn-pause-auto" class="btn-action-pause" title="Pause / Resume">⏸ Pause</button>
+          <button id="btn-reset-auto" class="btn-action-reset" title="Reset Scene & Workpiece (R)">⏹ Reset</button>
+        </div>
+
+        <div class="automation-options">
+          <div class="option-group">
+            <span>Speed:</span>
+            <input type="range" id="speed-range" min="0.25" max="2.5" step="0.25" value="1.0" style="width: 70px;">
+            <span id="speed-label" style="font-family: var(--font-mono); font-size: 11px; min-width: 32px;">1.00x</span>
+          </div>
+
+          <label class="option-group" style="cursor: pointer;">
+            <input type="checkbox" id="chk-continuous">
+            <span>Loop Cycle</span>
+          </label>
+        </div>
+
+        <div class="automation-options">
+          <div class="option-group">
+            <span>Trajectory:</span>
+            <select id="select-traj-type" class="option-select">
+              <option value="cubic" selected>Cubic Spline (C1)</option>
+              <option value="quintic">Quintic Min-Jerk (C2)</option>
+            </select>
+          </div>
+
+          <div class="option-group">
+            <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
+              <input type="checkbox" id="chk-trace-trail" checked>
+              <span>Trace Trail</span>
+            </label>
+            <button id="btn-clear-trail" class="hud-btn" style="padding: 2px 6px; font-size: 10px;">Clear</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 2: FORWARD KINEMATICS (JOINT SLIDERS) -->
+      <section class="section-card">
+        <div class="section-title">
+          <span>Forward Kinematics</span>
+          <span class="badge">Joint Angles</span>
+        </div>
+
+        <!-- Joint 1: Base Rotation around Z -->
+        <div class="joint-control">
+          <div class="joint-header">
+            <span class="joint-name">Joint 1: Base θ1 (Z-Axis)</span>
+            <div class="joint-values">
+              <span id="val-t1-deg" class="joint-val-deg">+0.0°</span>
+              <span id="val-t1-rad" class="joint-val-rad">0.000 rad</span>
+            </div>
+          </div>
+          <div class="slider-wrapper">
+            <input type="range" id="slider-t1" min="-180" max="180" step="0.5" value="0">
+          </div>
+        </div>
+
+        <!-- Joint 2: Shoulder Rotation around Y -->
+        <div class="joint-control">
+          <div class="joint-header">
+            <span class="joint-name">Joint 2: Shoulder θ2 (Y-Axis)</span>
+            <div class="joint-values">
+              <span id="val-t2-deg" class="joint-val-deg">+45.0°</span>
+              <span id="val-t2-rad" class="joint-val-rad">0.785 rad</span>
+            </div>
+          </div>
+          <div class="slider-wrapper">
+            <input type="range" id="slider-t2" min="-90" max="90" step="0.5" value="45">
+          </div>
+        </div>
+
+        <!-- Joint 3: Elbow Rotation around Y -->
+        <div class="joint-control">
+          <div class="joint-header">
+            <span class="joint-name">Joint 3: Elbow θ3 (Y-Axis)</span>
+            <div class="joint-values">
+              <span id="val-t3-deg" class="joint-val-deg">-45.0°</span>
+              <span id="val-t3-rad" class="joint-val-rad">-0.785 rad</span>
+            </div>
+          </div>
+          <div class="slider-wrapper">
+            <input type="range" id="slider-t3" min="-135" max="135" step="0.5" value="-45">
+          </div>
+        </div>
+
+        <button id="btn-home-pose" class="btn-secondary" style="width: 100%; margin-top: 4px;" title="Reset to Home Position [0°, 45°, -45°] (H)">
+          ⌂ Return to Home Standby Pose
+        </button>
+      </section>
+
+      <!-- SECTION 3: INVERSE KINEMATICS SOLVER -->
+      <section class="section-card">
+        <div class="section-title">
+          <span>Inverse Kinematics</span>
+          <span class="badge">Analytic Solver</span>
+        </div>
+
+        <div class="ik-inputs-grid">
+          <div class="input-group">
+            <label class="input-label" for="ik-input-x">Target X (m)</label>
+            <input type="number" id="ik-input-x" class="coord-input" step="0.05" value="1.00">
+          </div>
+          <div class="input-group">
+            <label class="input-label" for="ik-input-y">Target Y (m)</label>
+            <input type="number" id="ik-input-y" class="coord-input" step="0.05" value="1.00">
+          </div>
+          <div class="input-group">
+            <label class="input-label" for="ik-input-z">Target Z (m)</label>
+            <input type="number" id="ik-input-z" class="coord-input" step="0.05" value="0.20">
+          </div>
+        </div>
+
+        <div class="automation-options">
+          <div class="option-group" style="width: 100%;">
+            <span>Arm Configuration:</span>
+            <select id="select-elbow-config" class="option-select" style="flex: 1;">
+              <option value="elbow_down" selected>Elbow Down (Standard)</option>
+              <option value="elbow_up">Elbow Up (Overhead)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="ik-button-row">
+          <button id="btn-solve-ik" class="btn-primary" title="Calculate IK and Move Arm">⚡ Solve IK &amp; Move</button>
+          <button id="btn-preset-target-a" class="btn-secondary btn-target-a" title="Target A Pick Pose [1.0, 1.0, 0.2]">Target A</button>
+          <button id="btn-preset-target-b" class="btn-secondary btn-target-b" title="Target B Place Pose [-1.0, 1.2, 0.2]">Target B</button>
+        </div>
+      </section>
+
+    </aside>
+
+    <!-- RIGHT PANEL: Real-time Telemetry & Mathematics Engine -->
+    <aside class="panel">
+
+      <!-- SECTION 1: END-EFFECTOR TELEMETRY -->
+      <section class="section-card">
+        <div class="section-title">
+          <span>TCP Telemetry</span>
+          <span class="badge">Tool Center Point</span>
+        </div>
+
+        <div class="telemetry-grid">
+          <div class="telem-box">
+            <div class="telem-axis axis-x">X-Pos</div>
+            <div id="telem-x" class="telem-val">1.649 m</div>
+          </div>
+          <div class="telem-box">
+            <div class="telem-axis axis-y">Y-Pos</div>
+            <div id="telem-y" class="telem-val">0.000 m</div>
+          </div>
+          <div class="telem-box">
+            <div class="telem-axis axis-z">Z-Pos</div>
+            <div id="telem-z" class="telem-val">2.349 m</div>
+          </div>
+        </div>
+
+        <!-- Workspace Reach Meter -->
+        <div class="reach-wrapper">
+          <div class="reach-header">
+            <span>Workspace Reach (Max 2.00m)</span>
+            <span id="telem-reach" style="font-family: var(--font-mono); font-weight: 600;">1.854m (93%)</span>
+          </div>
+          <div class="reach-bar-bg">
+            <div id="telem-reach-bar" class="reach-bar-fill"></div>
+          </div>
+        </div>
+
+        <!-- Singularity / Workspace Boundary Warning Banner -->
+        <div id="singularity-warning" class="warning-banner"></div>
+      </section>
+
+      <!-- SECTION 2: 4x4 HOMOGENEOUS TRANSFORMATION MATRIX (T03) -->
+      <section class="section-card">
+        <div class="section-title">
+          <span>Homogeneous Transform</span>
+          <span class="badge">T₀³ = T₀¹·T₁²·T₂³</span>
+        </div>
+
+        <table class="dh-matrix-table">
+          <tbody>
+            <tr>
+              <td id="dh-m-0-0">1.000</td>
+              <td id="dh-m-0-1">0.000</td>
+              <td id="dh-m-0-2">0.000</td>
+              <td id="dh-m-0-3" class="matrix-pos">1.649</td>
+            </tr>
+            <tr>
+              <td id="dh-m-1-0">0.000</td>
+              <td id="dh-m-1-1">0.000</td>
+              <td id="dh-m-1-2">-1.000</td>
+              <td id="dh-m-1-3" class="matrix-pos">0.000</td>
+            </tr>
+            <tr>
+              <td id="dh-m-2-0">0.000</td>
+              <td id="dh-m-2-1">1.000</td>
+              <td id="dh-m-2-2">0.000</td>
+              <td id="dh-m-2-3" class="matrix-pos">2.349</td>
+            </tr>
+            <tr class="matrix-bottom">
+              <td id="dh-m-3-0">0.000</td>
+              <td id="dh-m-3-1">0.000</td>
+              <td id="dh-m-3-2">0.000</td>
+              <td id="dh-m-3-3">1.000</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="font-size: 10px; color: var(--text-dim); text-align: center;">
+          Left 3×3: Rotation Matrix [R] &nbsp;|&nbsp; Right 3×1: Position Vector [P]
+        </div>
+      </section>
+
+      <!-- SECTION 3: DENAVIT-HARTENBERG PARAMETERS TABLE -->
+      <section class="section-card">
+        <div class="section-title">
+          <span>Kinematic Model</span>
+          <span class="badge">Standard DH</span>
+        </div>
+
+        <table class="params-table">
+          <thead>
+            <tr>
+              <th>Link i</th>
+              <th>θᵢ (rad)</th>
+              <th>dᵢ (m)</th>
+              <th>aᵢ (m)</th>
+              <th>αᵢ (rad)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1 (Base)</td>
+              <td>θ₁ (var)</td>
+              <td>1.50</td>
+              <td>0.00</td>
+              <td>+π/2 (+90°)</td>
+            </tr>
+            <tr>
+              <td>2 (Shoulder)</td>
+              <td>θ₂ (var)</td>
+              <td>0.00</td>
+              <td>1.20</td>
+              <td>0 (0°)</td>
+            </tr>
+            <tr>
+              <td>3 (Elbow)</td>
+              <td>θ₃ (var)</td>
+              <td>0.00</td>
+              <td>0.80</td>
+              <td>0 (0°)</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- SECTION 4: PHYSICAL SPECIFICATIONS -->
+      <section class="section-card" style="font-size: 11px; color: var(--text-muted); gap: 6px;">
+        <div class="section-title">
+          <span>Specifications</span>
+          <span class="badge">Hardware Limits</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span>Link 1 Height (d1):</span>
+          <span style="font-family: var(--font-mono); color: #fff;">1.50 m</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span>Link 2 Length (a2):</span>
+          <span style="font-family: var(--font-mono); color: #fff;">1.20 m</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span>Link 3 Length (a3):</span>
+          <span style="font-family: var(--font-mono); color: #fff;">0.80 m</span>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span>Kinematic Workspace Reach:</span>
+          <span style="font-family: var(--font-mono); color: var(--accent-cyan);">0.40 m – 2.00 m</span>
+        </div>
+      </section>
+
+    </aside>
+
+  </main>
+
+  <!-- Bottom Visual Legend & Keyboard Shortcuts -->
+  <footer class="bottom-legend">
+    <div class="legend-item">
+      <div class="legend-pill pill-red"></div>
+      <span>+X Axis</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-pill pill-green"></div>
+      <span>+Y Axis</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-pill pill-blue"></div>
+      <span>+Z Axis (Up)</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-pill pill-yellow"></div>
+      <span>Target A [1.0, 1.0, 0.2]</span>
+    </div>
+    <div class="legend-item" style="border-left: 1px solid rgba(255,255,255,0.15); padding-left: 12px;">
+      <span>[Space] Start/Pause &nbsp;•&nbsp; [H] Home &nbsp;•&nbsp; [R] Reset &nbsp;•&nbsp; [1-4] Views</span>
+    </div>
+  </footer>
+
+  <!-- Vendor Scripts (Local with CDN fallback) -->
+  <script src="lib/three.min.js"></script>
+  <script>
+    if (typeof THREE === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+    }
+  </script>
+
+  <script src="lib/OrbitControls.js"></script>
+  <script>
+    if (typeof THREE !== 'undefined' && typeof THREE.OrbitControls === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"><\/script>');
+    }
+  </script>
+
+  <!-- Application Engine Scripts -->
+  <script src="kinematics.js"></script>
+  <script src="robot.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
