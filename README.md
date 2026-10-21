@@ -4,6 +4,10 @@ A high-precision, interactive, web-based 3D industrial robotics simulation built
 
 ---
 
+<p align="center">
+  <img src="assets/demo.gif" alt="3-DOF Robot Simulation Demo" width="700"/>
+</p>
+
 ## 🚀 Key Features
 
 - **Kinematic Configuration**: 3-Revolute Joints (Base rotation $\theta_1$ around $Z$, Shoulder rotation $\theta_2$ around $Y$, Elbow rotation $\theta_3$ around $Y$).
